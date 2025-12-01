@@ -1,0 +1,10 @@
+prg condicional;
+var
+    int numero;
+begin
+    read(numero);
+    if numero > 0 then
+        write(1)
+    else
+        write(0);
+end.

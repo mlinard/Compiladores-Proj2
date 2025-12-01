@@ -1,0 +1,9 @@
+prg expressoes;
+var
+    int a, b, resultado;
+begin
+    a <- 10;
+    b <- 5;
+    resultado <- a + b * 2;
+    write(resultado);
+end.
