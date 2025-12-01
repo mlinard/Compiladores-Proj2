@@ -1,0 +1,74 @@
+# Makefile para o Compilador LPDC
+# Projeto 2 de Compiladores
+
+# Compilador e flags
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c99
+LDFLAGS = 
+
+# Nome do executável
+TARGET = lpdc
+
+# Arquivos objeto
+OBJS = main.o asdr.o tabsimb.o gerador.o analex.o
+
+# Arquivos de cabeçalho
+HEADERS = analex.h asdr.h tabsimb.h gerador.h
+
+# Regra principal
+all: $(TARGET)
+
+# Linkagem do executável
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
+	@echo "Compilação concluída: executável '$(TARGET)' criado."
+
+# Compilação dos arquivos objeto
+main.o: main.c $(HEADERS)
+	$(CC) $(CFLAGS) -c main.c
+
+asdr.o: asdr.c asdr.h analex.h tabsimb.h gerador.h
+	$(CC) $(CFLAGS) -c asdr.c
+
+tabsimb.o: tabsimb.c tabsimb.h analex.h
+	$(CC) $(CFLAGS) -c tabsimb.c
+
+gerador.o: gerador.c gerador.h
+	$(CC) $(CFLAGS) -c gerador.c
+
+# Nota: analex.o deve ser fornecido pré-compilado
+# Se você não tem o analex.o ainda, descomente e use esta regra temporária:
+# analex.o: analex.c analex.h
+#	$(CC) $(CFLAGS) -c analex.c
+
+# Limpeza dos arquivos compilados
+clean:
+	rm -f $(OBJS) $(TARGET)
+	rm -f *.mepa *.ts
+	@echo "Arquivos temporários removidos."
+
+# Limpeza completa (incluindo arquivos de saída)
+distclean: clean
+	rm -f *.mepa *.ts *.o
+	@echo "Limpeza completa realizada."
+
+# Teste rápido (requer arquivo teste.lpd)
+test: $(TARGET)
+	@echo "Executando teste..."
+	./$(TARGET) teste.lpd
+	@echo ""
+	@echo "Arquivo MEPA gerado:"
+	@cat teste.mepa
+	@echo ""
+	@echo "Tabela de Símbolos:"
+	@cat teste.ts
+
+# Ajuda
+help:
+	@echo "Comandos disponíveis:"
+	@echo "  make         - Compila o projeto"
+	@echo "  make clean   - Remove arquivos objeto e executável"
+	@echo "  make test    - Compila e executa teste com teste.lpd"
+	@echo "  make help    - Mostra esta mensagem"
+
+.PHONY: all clean distclean test help
