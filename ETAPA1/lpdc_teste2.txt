@@ -1,9 +1,0 @@
-prg leitura_escrita;
-var
-    int x, y, soma;
-begin
-    read(x);
-    read(y);
-    soma <- x + y;
-    write(soma);
-end.
