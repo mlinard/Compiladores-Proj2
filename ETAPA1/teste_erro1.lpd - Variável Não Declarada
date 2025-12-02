@@ -1,0 +1,7 @@
+prg erro_nao_declarada;
+var
+    int x;
+begin
+    y <- 10;
+    write(x);
+end.
