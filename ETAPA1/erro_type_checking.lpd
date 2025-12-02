@@ -1,0 +1,8 @@
+prg erro_type_checking;
+var
+    int numero;
+    bool flag;
+begin
+    numero <- 10;
+    flag <- numero;
+end.
