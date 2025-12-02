@@ -14,8 +14,7 @@ extern TInfoAtomo lookahead;
 extern int linha_atual;
 extern int erro_sintatico;
 
-// Funções de inicialização e controle
-void inicializar_analex(FILE *arquivo);
+// Função de controle principal
 int parse_programa();
 
 // Função auxiliar de verificação de tokens
