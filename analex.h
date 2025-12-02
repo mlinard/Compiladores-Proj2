@@ -6,6 +6,8 @@
 #ifndef ANALEX_H
 #define ANALEX_H
 
+#include <stdio.h>
+
 // Definição dos tokens (átomos) da linguagem LPD
 typedef enum {
     sPRG = 0,           // prg
@@ -65,6 +67,9 @@ typedef struct {
     int linha;          // Linha onde foi encontrado
     char lexema[100];   // Lexema (texto) do token
 } TInfoAtomo;
+
+// Variável global do arquivo fonte (usada pelo analex.o)
+extern FILE *fonte;
 
 // Função principal do analisador léxico
 // Retorna o próximo átomo do arquivo fonte
