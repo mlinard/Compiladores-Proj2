@@ -1,11 +1,13 @@
 /*
  * asdr.h - Interface do Analisador Sintático Descendente Recursivo
+ * VERSÃO FINAL COM TYPE CHECKING
  */
 
 #ifndef ASDR_H
 #define ASDR_H
 
 #include "analex.h"
+#include "tabsimb.h"
 
 // Variáveis globais do parser
 extern TInfoAtomo lookahead;
@@ -22,7 +24,7 @@ void verifica(TAtomo token_esperado);
 // Funções do ASDR (uma para cada não-terminal da gramática)
 void parse_ini();
 void parse_id();
-void parse_dcl();
+int parse_dcl();
 int parse_dcl_var();
 TAtomo parse_tipo();
 int parse_mais_var(TAtomo tipo);
@@ -37,13 +39,20 @@ void parse_repeticao();
 void parse_while();
 void parse_repeat();
 void parse_for();
-void parse_exp();
-void parse_exp_simples();
-void parse_termo();
-void parse_fator();
+
+// Funções de expressão COM retorno de tipo
+TipoDado parse_exp();
+TipoDado parse_exp_simples();
+TipoDado parse_termo();
+TipoDado parse_fator();
 
 // Funções auxiliares
 const char* nome_token(TAtomo token);
 void erro_sintatico_msg(const char *esperado, TAtomo encontrado);
+
+// Funções auxiliares para type checking
+TipoDado atomo_para_tipodado(TAtomo tipo);
+int tipos_compativeis(TipoDado tipo1, TipoDado tipo2);
+const char* nome_tipo(TipoDado tipo);
 
 #endif
