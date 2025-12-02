@@ -1,6 +1,6 @@
 /*
  * asdr.c - Implementação do Analisador Sintático Descendente Recursivo
- * ETAPA 2: Expressões, Comandos e Validações Semânticas
+ * VERSÃO FINAL COM TYPE CHECKING COMPLETO
  */
 
 #include <stdio.h>
@@ -15,6 +15,35 @@
 TInfoAtomo lookahead;
 int linha_atual = 1;
 int erro_sintatico = 0;
+
+// Função auxiliar: converter TAtomo para TipoDado
+TipoDado atomo_para_tipodado(TAtomo tipo) {
+    switch(tipo) {
+        case sINT: return TIPO_INT;
+        case sFLOAT: return TIPO_FLOAT;
+        case sBOOL: return TIPO_BOOL;
+        case sCHAR: return TIPO_CHAR;
+        default: return TIPO_VOID;
+    }
+}
+
+// Função auxiliar: verificar compatibilidade de tipos
+int tipos_compativeis(TipoDado tipo1, TipoDado tipo2) {
+    // Tipos exatamente iguais são sempre compatíveis
+    if (tipo1 == tipo2) return 1;
+    
+    // Conversão implícita: int pode ser atribuído a float
+    if (tipo1 == TIPO_INT && tipo2 == TIPO_FLOAT) return 1;
+    if (tipo1 == TIPO_FLOAT && tipo2 == TIPO_INT) return 1;
+    
+    // Demais combinações são incompatíveis
+    return 0;
+}
+
+// Função auxiliar: obter nome do tipo para mensagens
+const char* nome_tipo(TipoDado tipo) {
+    return tipo_para_string(tipo);
+}
 
 // Função para obter nome legível do token
 const char* nome_token(TAtomo token) {
@@ -110,7 +139,7 @@ void parse_ini() {
     parse_id();
     
     // Inserir programa na tabela de símbolos
-    ts_inserir(id.lexema, CAT_PROGRAMA, TIPO_VOID, -1);
+    ts_inserir(id.lexema, CAT_PROGRAMA, sVOID, -1);
     
     verifica(sPONTO_VIRG);
     
@@ -131,7 +160,7 @@ void parse_ini() {
     
     // Sub-rotinas (opcional) - ignoramos para simplificar
     if (lookahead.atomo == sSUBROT) {
-        printf("Aviso: sub-rotinas ainda não implementadas\n");
+        printf("Aviso: sub-rotinas não implementadas (ignorando)\n");
     }
     
     // Bloco principal
@@ -287,8 +316,19 @@ void parse_atrib() {
     
     verifica(sATRIB);
     
-    // Avaliar expressão (resultado fica no topo da pilha)
-    parse_exp();
+    // Avaliar expressão E obter seu tipo
+    TipoDado tipo_exp = parse_exp();
+    
+    // TYPE CHECKING: Validar compatibilidade de tipos
+    if (!tipos_compativeis(tipo_exp, registro->tipo)) {
+        printf("Erro semântico (%d): incompatibilidade de tipos na atribuição - "
+               "tentando atribuir '%s' a variável '%s' do tipo '%s'\n",
+               linha_atual,
+               nome_tipo(tipo_exp),
+               id.lexema,
+               nome_tipo(registro->tipo));
+        exit(1);
+    }
     
     // Gerar instrução de armazenamento
     char nivel[20], endereco[20];
@@ -349,8 +389,11 @@ void parse_ret() {
 void parse_selecao() {
     verifica(sIF);
     
-    // Avaliar condição
-    parse_exp();
+    // Avaliar condição e obter tipo
+    TipoDado tipo_cond = parse_exp();
+    
+    // TYPE CHECKING: Condição deve ser booleana (ou numérica para comparação)
+    // Em LPD, aceitamos qualquer tipo que possa ser avaliado como verdadeiro/falso
     
     verifica(sTHEN);
     
@@ -513,8 +556,8 @@ void parse_for() {
 }
 
 // <exp> ::= <exp_simples> [<op_rel> <exp_simples>]
-void parse_exp() {
-    parse_exp_simples();
+TipoDado parse_exp() {
+    TipoDado tipo1 = parse_exp_simples();
     
     // Operadores relacionais
     if (lookahead.atomo == sMENOR || lookahead.atomo == sMENOR_IG ||
@@ -525,7 +568,17 @@ void parse_exp() {
         lookahead = obter_atomo();
         linha_atual = lookahead.linha;
         
-        parse_exp_simples();
+        TipoDado tipo2 = parse_exp_simples();
+        
+        // TYPE CHECKING: Operandos devem ser compatíveis
+        if (!tipos_compativeis(tipo1, tipo2)) {
+            printf("Erro semântico (%d): operandos incompatíveis na comparação - "
+                   "'%s' e '%s'\n",
+                   linha_atual,
+                   nome_tipo(tipo1),
+                   nome_tipo(tipo2));
+            exit(1);
+        }
         
         // Gerar instrução de comparação
         switch(op) {
@@ -550,11 +603,16 @@ void parse_exp() {
             default:
                 break;
         }
+        
+        // Comparações retornam tipo BOOL
+        return TIPO_BOOL;
     }
+    
+    return tipo1;
 }
 
 // <exp_simples> ::= [+|-] <termo> { (+|-|ou) <termo> }
-void parse_exp_simples() {
+TipoDado parse_exp_simples() {
     int sinal_negativo = 0;
     
     // Sinal unário opcional
@@ -565,10 +623,17 @@ void parse_exp_simples() {
         sinal_negativo = 1;
     }
     
-    parse_termo();
+    TipoDado tipo_resultado = parse_termo();
     
     // Aplicar sinal negativo se necessário
     if (sinal_negativo) {
+        // TYPE CHECKING: Sinal negativo só faz sentido em numéricos
+        if (tipo_resultado != TIPO_INT && tipo_resultado != TIPO_FLOAT) {
+            printf("Erro semântico (%d): operador unário '-' aplicado a tipo não-numérico '%s'\n",
+                   linha_atual,
+                   nome_tipo(tipo_resultado));
+            exit(1);
+        }
         gera_instr_mepa(NULL, "INVR", NULL, NULL);
     }
     
@@ -579,28 +644,49 @@ void parse_exp_simples() {
         lookahead = obter_atomo();
         linha_atual = lookahead.linha;
         
-        parse_termo();
+        TipoDado tipo_termo = parse_termo();
         
-        // Gerar instrução de operação
-        switch(op) {
-            case sSOMA:
+        // TYPE CHECKING: Validar compatibilidade de operandos
+        if (op == sOU) {
+            // Operador lógico 'ou' requer booleanos
+            if (tipo_resultado != TIPO_BOOL || tipo_termo != TIPO_BOOL) {
+                printf("Erro semântico (%d): operador 'ou' requer operandos booleanos\n",
+                       linha_atual);
+                exit(1);
+            }
+            gera_instr_mepa(NULL, "DISJ", NULL, NULL);
+            tipo_resultado = TIPO_BOOL;
+        } else {
+            // Operadores aritméticos requerem tipos compatíveis
+            if (!tipos_compativeis(tipo_resultado, tipo_termo)) {
+                printf("Erro semântico (%d): operandos incompatíveis em operação aritmética - "
+                       "'%s' e '%s'\n",
+                       linha_atual,
+                       nome_tipo(tipo_resultado),
+                       nome_tipo(tipo_termo));
+                exit(1);
+            }
+            
+            // Gerar instrução de operação
+            if (op == sSOMA) {
                 gera_instr_mepa(NULL, "SOMA", NULL, NULL);
-                break;
-            case sSUBT:
+            } else { // sSUBT
                 gera_instr_mepa(NULL, "SUBT", NULL, NULL);
-                break;
-            case sOU:
-                gera_instr_mepa(NULL, "DISJ", NULL, NULL);
-                break;
-            default:
-                break;
+            }
+            
+            // Tipo do resultado: se um é float, resultado é float
+            if (tipo_resultado == TIPO_FLOAT || tipo_termo == TIPO_FLOAT) {
+                tipo_resultado = TIPO_FLOAT;
+            }
         }
     }
+    
+    return tipo_resultado;
 }
 
 // <termo> ::= <fator> { (*|/|e) <fator> }
-void parse_termo() {
-    parse_fator();
+TipoDado parse_termo() {
+    TipoDado tipo_resultado = parse_fator();
     
     // Operadores multiplicativos
     while (lookahead.atomo == sMULT || lookahead.atomo == sDIV || 
@@ -609,27 +695,48 @@ void parse_termo() {
         lookahead = obter_atomo();
         linha_atual = lookahead.linha;
         
-        parse_fator();
+        TipoDado tipo_fator = parse_fator();
         
-        // Gerar instrução de operação
-        switch(op) {
-            case sMULT:
+        // TYPE CHECKING: Validar compatibilidade de operandos
+        if (op == sE) {
+            // Operador lógico 'e' requer booleanos
+            if (tipo_resultado != TIPO_BOOL || tipo_fator != TIPO_BOOL) {
+                printf("Erro semântico (%d): operador 'e' requer operandos booleanos\n",
+                       linha_atual);
+                exit(1);
+            }
+            gera_instr_mepa(NULL, "CONJ", NULL, NULL);
+            tipo_resultado = TIPO_BOOL;
+        } else {
+            // Operadores aritméticos requerem tipos compatíveis
+            if (!tipos_compativeis(tipo_resultado, tipo_fator)) {
+                printf("Erro semântico (%d): operandos incompatíveis em operação aritmética - "
+                       "'%s' e '%s'\n",
+                       linha_atual,
+                       nome_tipo(tipo_resultado),
+                       nome_tipo(tipo_fator));
+                exit(1);
+            }
+            
+            // Gerar instrução de operação
+            if (op == sMULT) {
                 gera_instr_mepa(NULL, "MULT", NULL, NULL);
-                break;
-            case sDIV:
+            } else { // sDIV
                 gera_instr_mepa(NULL, "DIVI", NULL, NULL);
-                break;
-            case sE:
-                gera_instr_mepa(NULL, "CONJ", NULL, NULL);
-                break;
-            default:
-                break;
+            }
+            
+            // Tipo do resultado: se um é float, resultado é float
+            if (tipo_resultado == TIPO_FLOAT || tipo_fator == TIPO_FLOAT) {
+                tipo_resultado = TIPO_FLOAT;
+            }
         }
     }
+    
+    return tipo_resultado;
 }
 
 // <fator> ::= <id> | <num> | ( <exp> ) | nao <fator>
-void parse_fator() {
+TipoDado parse_fator() {
     if (lookahead.atomo == sIDENT) {
         TInfoAtomo id = lookahead;
         verifica(sIDENT);
@@ -648,12 +755,17 @@ void parse_fator() {
         snprintf(endereco, sizeof(endereco), "%d", registro->endereco);
         gera_instr_mepa(NULL, "CRVL", nivel, endereco);
         
+        // Retornar tipo da variável
+        return registro->tipo;
+        
     } else if (lookahead.atomo == sNUM_INT) {
         TInfoAtomo num = lookahead;
         verifica(sNUM_INT);
         
         // Gerar instrução para carregar constante
         gera_instr_mepa(NULL, "CRCT", num.lexema, NULL);
+        
+        return TIPO_INT;
         
     } else if (lookahead.atomo == sNUM_FLOAT) {
         TInfoAtomo num = lookahead;
@@ -662,15 +774,31 @@ void parse_fator() {
         // Gerar instrução para carregar constante
         gera_instr_mepa(NULL, "CRCT", num.lexema, NULL);
         
+        return TIPO_FLOAT;
+        
     } else if (lookahead.atomo == sABRE_PARENT) {
         verifica(sABRE_PARENT);
-        parse_exp();
+        TipoDado tipo = parse_exp();
         verifica(sFECHA_PARENT);
+        
+        return tipo;
         
     } else if (lookahead.atomo == sNAO) {
         verifica(sNAO);
-        parse_fator();
+        TipoDado tipo = parse_fator();
+        
+        // TYPE CHECKING: Operador 'nao' requer operando booleano
+        if (tipo != TIPO_BOOL) {
+            printf("Erro semântico (%d): operador 'nao' requer operando booleano, "
+                   "encontrado '%s'\n",
+                   linha_atual,
+                   nome_tipo(tipo));
+            exit(1);
+        }
+        
         gera_instr_mepa(NULL, "NEGA", NULL, NULL);
+        
+        return TIPO_BOOL;
         
     } else {
         erro_sintatico_msg("fator (identificador, número ou expressão)", 
