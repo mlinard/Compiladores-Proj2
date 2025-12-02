@@ -13,8 +13,10 @@
 #include "tabsimb.h"
 #include "gerador.h"
 
-// Variáveis globais
-FILE *arquivo_fonte = NULL;
+// Variável global necessária para analex.o
+FILE *fonte = NULL;
+
+// Arquivos de saída
 FILE *arquivo_mepa = NULL;
 FILE *arquivo_ts = NULL;
 char nome_arquivo[256];
@@ -55,7 +57,7 @@ int criar_arquivos_saida(const char *nome_base) {
 
 // Função para fechar todos os arquivos
 void fechar_arquivos() {
-    if (arquivo_fonte) fclose(arquivo_fonte);
+    if (fonte) fclose(fonte);
     if (arquivo_mepa) fclose(arquivo_mepa);
     if (arquivo_ts) fclose(arquivo_ts);
 }
@@ -67,9 +69,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
-    // Abrir arquivo fonte
-    arquivo_fonte = fopen(argv[1], "r");
-    if (!arquivo_fonte) {
+    // Abrir arquivo fonte (variável global para analex.o)
+    fonte = fopen(argv[1], "r");
+    if (!fonte) {
         fprintf(stderr, "Erro: não foi possível abrir arquivo '%s'\n", argv[1]);
         return 1;
     }
@@ -84,9 +86,12 @@ int main(int argc, char *argv[]) {
     }
     
     // Inicializar módulos
-    inicializar_analex(arquivo_fonte);
     inicializar_tabela_simbolos();
     inicializar_gerador(arquivo_mepa);
+    
+    // Bootstrap: carregar primeiro token
+    lookahead = obter_atomo();
+    linha_atual = lookahead.linha;
     
     printf("Compilando '%s'...\n", argv[1]);
     
@@ -102,11 +107,13 @@ int main(int argc, char *argv[]) {
         finalizar_gerador();
         
         fechar_arquivos();
+        liberar_tabela_simbolos();
         return 0;
     } else {
         // Erro na compilação
         printf("\nCompilação finalizada com erros.\n");
         fechar_arquivos();
+        liberar_tabela_simbolos();
         return 1;
     }
 }
