@@ -1,7 +1,0 @@
-prg erro_duplicada;
-var
-    int x;
-    int x;
-begin
-    x <- 5;
-end.
