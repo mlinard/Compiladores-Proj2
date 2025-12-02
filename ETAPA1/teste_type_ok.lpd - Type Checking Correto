@@ -1,0 +1,19 @@
+prg type_checking_ok;
+var
+    int x, y, resultado;
+    float media;
+    bool condicao;
+begin
+    x <- 10;
+    y <- 5;
+    resultado <- x + y * 2;
+    
+    media <- 7.5;
+    
+    condicao <- x > y;
+    
+    if condicao then
+        write(resultado)
+    else
+        write(0);
+end.
